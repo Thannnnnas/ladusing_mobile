@@ -17,7 +17,7 @@ class _PencatatanPageState extends State<PencatatanPage> {
   int _selectedMenuIndex = 1;
   bool isIncomeSelected = true;
   List<Map<String, dynamic>> transaksiRecords = [];
-  String selectedMonth = 'April 2025'; // tambahkan dropdown bulan
+  String selectedMonth = 'April 2025'; 
 
   void _showAddTransactionDialog() {
     TextEditingController amountController = TextEditingController();

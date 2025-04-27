@@ -81,7 +81,7 @@ class RegisterScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context); // balik ke login
+                    Navigator.pop(context); 
                   },
                   child: RichText(
                     text: TextSpan(

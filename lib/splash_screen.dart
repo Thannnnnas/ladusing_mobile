@@ -26,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     _backgroundColor = ColorTween(
       begin: Colors.white,
-      end: const Color(0xFF0F0FD4), // warna biru gelap
+      end: const Color(0xFF0F0FD4), 
     ).animate(
       CurvedAnimation(parent: _controller, curve: Interval(0.5, 1.0)),
     );
