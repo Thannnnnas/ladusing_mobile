@@ -1,73 +1,23 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
 import 'budgeting_page.dart';
-import 'pencatatan_page.dart';
 import 'laporan_page.dart';
+import 'pencatatan_page.dart'; // Import PencatatanPage yang benar
 
+// ProfilePage sekarang menerima authToken
 class ProfilePage extends StatefulWidget {
+  final String authToken;
+
+  const ProfilePage({Key? key, required this.authToken}) : super(key: key);
+
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  int _selectedMenuIndex = 3;
-  String name = 'Antonio Hutabarat';
-  String email = 'Hutabaratonio@example.com';
-  String password = 'HutaHAHA7*';
-
-  void _changePassword() {
-    TextEditingController passwordController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Ganti Sandi'),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          decoration: InputDecoration(
-            hintText: 'Masukkan sandi baru',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (passwordController.text.isNotEmpty) {
-                setState(() {
-                  password = passwordController.text;
-                });
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-            ),
-            child: Text('Ganti'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _logout() {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => LoginScreen()),
-      (route) => false,
-    );
-  }
+  int _selectedMenuIndex = 3; // Index untuk ProfilePage
 
   @override
   Widget build(BuildContext context) {
-    double profilePicSize = 100.0; 
-    double buttonWidth = 150.0; 
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -79,100 +29,70 @@ class _ProfilePageState extends State<ProfilePage> {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Text(
-                  'LADUSING',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                CircleAvatar(
-                  radius: profilePicSize / 2,
-                  backgroundImage: AssetImage('assets/pp.jpg'),
-                  backgroundColor: Colors.white30,
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  width: double.infinity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildProfileItem('Nama', name),
-                      const SizedBox(height: 16),
-                      _buildProfileItem('Email', email),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Container(
-                  width: buttonWidth,
-                  child: Column(
-                    children: [
-                      ElevatedButton(
-                        onPressed: _changePassword,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.blue,
-                          minimumSize: Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text('Ganti Sandi', style: TextStyle(fontSize: 14)),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _logout,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          minimumSize: Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text('Logout', style: TextStyle(fontSize: 14)),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-              ],
+        child: Column(
+          children: [
+            AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: const Text(
+                'LADUSING',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              centerTitle: true,
             ),
-          ),
+            Expanded(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: const Center(
+                  child: Text(
+                    'Halaman Profil',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
-        selectedItemColor: Colors.blue,
+        selectedItemColor: const Color(0xFF4A90E2),
         unselectedItemColor: Colors.grey,
         currentIndex: _selectedMenuIndex,
         onTap: (index) {
           if (index != _selectedMenuIndex) {
+            // Penting: Teruskan authToken ke halaman berikutnya!
+            // Karena `ProfilePage` tidak memiliki akses langsung ke `_allBudgetingCategories`,
+            // kita meneruskan list kosong dan `PencatatanPage` akan melakukan fetch sendiri di `initState`.
             switch (index) {
               case 0:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => BudgetingPage()));
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => BudgetingPage(authToken: widget.authToken)),
+                );
                 break;
               case 1:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => PencatatanPage(
-                  tipePemasukan: ['Gaji', 'Bonus'],
-                  tipePengeluaran: ['Makan', 'Transportasi'],
-                )));
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => PencatatanPage(
+                    authToken: widget.authToken,
+                    tipePemasukan: const [], // Akan di-fetch oleh PencatatanPage
+                    tipePengeluaran: const [], // Akan di-fetch oleh PencatatanPage
+                    allBudgetingCategories: const [], // Akan di-fetch oleh PencatatanPage
+                  )),
+                );
                 break;
               case 2:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LaporanPage()));
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => LaporanPage(authToken: widget.authToken)),
+                );
                 break;
               case 3:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ProfilePage()));
+                // Sudah di ProfilePage, tidak perlu navigasi ulang
                 break;
             }
           }
@@ -184,30 +104,6 @@ class _ProfilePageState extends State<ProfilePage> {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
-    );
-  }
-
-  Widget _buildProfileItem(String title, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.white70,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-          ),
-        ),
-      ],
     );
   }
 }

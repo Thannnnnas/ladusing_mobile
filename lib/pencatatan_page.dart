@@ -1,13 +1,25 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'budgeting_page.dart';
+import 'package:http/http.dart' as http;
+import 'budgeting_page.dart'; 
 import 'laporan_page.dart';
 import 'profile_page.dart';
+import 'package:intl/intl.dart'; 
+import 'package:collection/collection.dart'; 
 
 class PencatatanPage extends StatefulWidget {
+  final String authToken;
   final List<String> tipePemasukan;
   final List<String> tipePengeluaran;
+  final List<BudgetingCategory> allBudgetingCategories; 
 
-  const PencatatanPage({required this.tipePemasukan, required this.tipePengeluaran});
+  const PencatatanPage({
+    Key? key,
+    required this.authToken,
+    this.tipePemasukan = const [],
+    this.tipePengeluaran = const [],
+    required this.allBudgetingCategories, 
+  }) : super(key: key);
 
   @override
   _PencatatanPageState createState() => _PencatatanPageState();
@@ -16,80 +28,251 @@ class PencatatanPage extends StatefulWidget {
 class _PencatatanPageState extends State<PencatatanPage> {
   int _selectedMenuIndex = 1;
   bool isIncomeSelected = true;
+  bool _isLoading = true;
   List<Map<String, dynamic>> transaksiRecords = [];
-  String selectedMonth = 'April 2025'; 
+  String _selectedMonthForTransactions = DateFormat('MMMM yyyy', 'id').format(DateTime.now());
+
+  DateTime _currentSelectedDateInDialog = DateTime.now();
+
+  final String _baseUrl = 'http://192.168.56.111:9999';
+
+  List<String> _availableMonthsForTransactions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _generateAvailableMonths();
+    _fetchTransactions();
+  }
+
+  void _generateAvailableMonths() {
+    DateTime now = DateTime.now();
+    _availableMonthsForTransactions.clear(); 
+    for (int i = -6; i <= 12; i++) {
+      DateTime month = DateTime(now.year, now.month + i, 1);
+      _availableMonthsForTransactions.add(DateFormat('MMMM yyyy', 'id').format(month)); 
+    }
+    if (!_availableMonthsForTransactions.contains(_selectedMonthForTransactions)) {
+      _selectedMonthForTransactions = DateFormat('MMMM yyyy', 'id').format(now);
+      if (!_availableMonthsForTransactions.contains(_selectedMonthForTransactions) && _availableMonthsForTransactions.isNotEmpty) {
+        _selectedMonthForTransactions = _availableMonthsForTransactions.first; 
+      }
+    }
+  }
+
+  Future<void> _fetchTransactions() async {
+    setState(() {
+      _isLoading = true;
+      transaksiRecords.clear();
+    });
+
+    DateTime parsedMonth = DateFormat('MMMM yyyy', 'id').parse(_selectedMonthForTransactions);
+    String monthYearApiFormat = DateFormat('yyyy-MM').format(parsedMonth);
+
+    final url = Uri.parse('$_baseUrl/transactions?month=$monthYearApiFormat');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.authToken}',
+        },
+      );
+
+      print('Pencatatan - Transaksi Status code: ${response.statusCode}');
+      print('Pencatatan - Transaksi Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final dynamic decodedData = jsonDecode(response.body);
+
+        if (decodedData is List) {
+          List<Map<String, dynamic>> fetchedTransactions = [];
+          for (var item in decodedData) {
+            if (item is Map<String, dynamic>) {
+              final int? budgetingId = (item['budgeting_id'] as num?)?.toInt();
+              BudgetingCategory? budgetCat;
+
+              if (budgetingId != null) {
+                budgetCat = widget.allBudgetingCategories.firstWhereOrNull(
+                    (cat) => cat.id == budgetingId);
+              }
+
+              fetchedTransactions.add({
+                'id': item['id'],
+                'transaction_date': DateTime.tryParse(item['transaction_date'] ?? '') ?? DateTime.now(),
+                'category': budgetCat?.category ?? item['category'] ?? 'Tidak Diketahui',
+                'amount': (item['amount'] as num?)?.toInt() ?? 0,
+                'type': item['type'],
+                'isIncome': item['type'] == 'pemasukan',
+              });
+            }
+          }
+          setState(() {
+            transaksiRecords = fetchedTransactions;
+          });
+        } else {
+          _showErrorDialog('Gagal memuat transaksi: Format respons tidak sesuai (bukan list).');
+        }
+      } else {
+        _showErrorDialog('Gagal memuat transaksi: Status ${response.statusCode}. Pesan: ${jsonDecode(response.body)['message'] ?? 'Tidak ada pesan.'}');
+      }
+    } catch (e) {
+      print('Exception fetching transactions: $e');
+      _showErrorDialog('Gagal menghubungi server untuk memuat transaksi. Pastikan IP benar.');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _addTransactionToApi(int budgetingId, DateTime transactionDate, String type, int amount) async {
+    final url = Uri.parse('$_baseUrl/transactions');
+
+    Map<String, dynamic> body = {
+      'budgeting_id': budgetingId,
+      'transaction_date': DateFormat('yyyy-MM-dd').format(transactionDate),
+      'type': type,
+      'amount': amount,
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.authToken}',
+        },
+        body: jsonEncode(body),
+      );
+
+      print('Add Transaction Status code: ${response.statusCode}');
+      print('Add Transaction Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        _fetchTransactions();
+      } else {
+        _showErrorDialog('Gagal menambahkan transaksi: Status ${response.statusCode}. Pesan: ${jsonDecode(response.body)['message'] ?? 'Tidak ada pesan.'}');
+      }
+    } catch (e) {
+      print('Exception adding transaction: $e');
+      _showErrorDialog('Gagal menghubungi server untuk menambahkan transaksi. Pastikan IP benar.');
+    }
+  }
 
   void _showAddTransactionDialog() {
     TextEditingController amountController = TextEditingController();
-    String? selectedType;
-    DateTime selectedDate = DateTime.now();
+    BudgetingCategory? selectedBudgetingCategory;
+    DateTime dialogSelectedDate = _currentSelectedDateInDialog;
+
+    List<BudgetingCategory> availableCategories = isIncomeSelected
+        ? widget.allBudgetingCategories.where((cat) => cat.type == 'pemasukan').toList()
+        : widget.allBudgetingCategories.where((cat) => cat.type == 'pengeluaran').toList();
 
     showDialog(
       context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Tambah ${isIncomeSelected ? 'Pemasukan' : 'Pengeluaran'}'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () async {
+                      DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: dialogSelectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2101),
+                      );
+                      if (picked != null && picked != dialogSelectedDate) {
+                        setDialogState(() {
+                          dialogSelectedDate = picked;
+                        });
+                      }
+                    },
+                    child: Text("Pilih Tanggal: ${DateFormat('dd-MM-yyyy').format(dialogSelectedDate)}"),
+                  ),
+                  DropdownButton<BudgetingCategory>(
+                    value: selectedBudgetingCategory,
+                    hint: const Text('Pilih Kategori'),
+                    isExpanded: true,
+                    items: availableCategories.map((category) => DropdownMenuItem<BudgetingCategory>(
+                              value: category,
+                              child: Text(category.category),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedBudgetingCategory = value;
+                      });
+                    },
+                  ),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(hintText: "Masukkan Nominal"),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (selectedBudgetingCategory == null || amountController.text.isEmpty) {
+                      _showErrorDialog('Kategori dan Nominal tidak boleh kosong.');
+                      return;
+                    }
+
+                    int? amount = int.tryParse(amountController.text);
+                    if (amount == null) {
+                      _showErrorDialog('Nominal harus berupa angka valid.');
+                      return;
+                    }
+
+                    if (selectedBudgetingCategory!.type == 'pengeluaran') {
+                      final double currentRemainingLimit = selectedBudgetingCategory!.remainingLimit ?? 0.0;
+                      if (amount > currentRemainingLimit) {
+                        _showErrorDialog('Pengeluaran melebihi sisa limit Anda (${NumberFormat.currency(locale: 'id', symbol: 'Rp ').format(currentRemainingLimit)}).');
+                        return;
+                      }
+                    }
+
+                    _addTransactionToApi(
+                      selectedBudgetingCategory!.id,
+                      dialogSelectedDate,
+                      selectedBudgetingCategory!.type,
+                      amount,
+                    );
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Tambah'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
       builder: (_) => AlertDialog(
-        title: Text('Tambah ${isIncomeSelected ? 'Pemasukan' : 'Pengeluaran'}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextButton(
-              onPressed: () async {
-                DateTime? picked = await showDatePicker(
-                  context: context,
-                  initialDate: selectedDate,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2101),
-                );
-                if (picked != null) {
-                  setState(() {
-                    selectedDate = picked;
-                  });
-                }
-              },
-              child: Text("Pilih Tanggal: ${selectedDate.toLocal()}".split(' ')[0]),
-            ),
-            DropdownButton<String>(
-              value: selectedType,
-              hint: Text('Pilih Tipe'),
-              isExpanded: true,
-              items: (isIncomeSelected ? widget.tipePemasukan : widget.tipePengeluaran)
-                  .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedType = value;
-                });
-              },
-            ),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(hintText: "Masukkan Nominal"),
-            ),
-          ],
-        ),
+        title: const Text('Error'),
+        content: Text(message),
         actions: [
           TextButton(
+            child: const Text('OK'),
             onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (selectedType != null && amountController.text.isNotEmpty) {
-                transaksiRecords.add({
-                  'date': selectedDate,
-                  'type': selectedType,
-                  'amount': int.parse(amountController.text),
-                  'isIncome': isIncomeSelected,
-                });
-                Navigator.pop(context);
-                setState(() {});
-              }
-            },
-            child: Text('Tambah'),
-          ),
+          )
         ],
       ),
     );
@@ -97,6 +280,10 @@ class _PencatatanPageState extends State<PencatatanPage> {
 
   @override
   Widget build(BuildContext context) {
+    final List<Map<String, dynamic>> filteredTransactions = transaksiRecords
+        .where((t) => t['isIncome'] == isIncomeSelected)
+        .toList();
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -127,7 +314,24 @@ class _PencatatanPageState extends State<PencatatanPage> {
                 ),
                 child: Column(
                   children: [
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                    DropdownButton<String>(
+                      value: _selectedMonthForTransactions,
+                      underline: const SizedBox(),
+                      
+                      items: _availableMonthsForTransactions.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value), 
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedMonthForTransactions = value!;
+                        });
+                        _fetchTransactions();
+                      },
+                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -140,12 +344,12 @@ class _PencatatanPageState extends State<PencatatanPage> {
                           child: Text(
                             'Pemasukan',
                             style: TextStyle(
-                              color: isIncomeSelected ? Color(0xFF4A90E2) : Colors.grey,
+                              color: isIncomeSelected ? const Color(0xFF4A90E2) : Colors.grey,
                               fontWeight: isIncomeSelected ? FontWeight.bold : FontWeight.normal,
                             ),
                           ),
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         TextButton(
                           onPressed: () {
                             setState(() {
@@ -155,7 +359,7 @@ class _PencatatanPageState extends State<PencatatanPage> {
                           child: Text(
                             'Pengeluaran',
                             style: TextStyle(
-                              color: !isIncomeSelected ? Color(0xFF4A90E2) : Colors.grey,
+                              color: !isIncomeSelected ? const Color(0xFF4A90E2) : Colors.grey,
                               fontWeight: !isIncomeSelected ? FontWeight.bold : FontWeight.normal,
                             ),
                           ),
@@ -163,20 +367,34 @@ class _PencatatanPageState extends State<PencatatanPage> {
                       ],
                     ),
                     Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: transaksiRecords.length,
-                        itemBuilder: (context, index) {
-                          var transaksi = transaksiRecords[index];
-                          if (transaksi['isIncome'] != isIncomeSelected) {
-                            return const SizedBox.shrink();
-                          }
-                          return ListTile(
-                            title: Text('${transaksi['type']} - Rp ${transaksi['amount']}'),
-                            subtitle: Text('${transaksi['date'].toLocal()}'.split(' ')[0]),
-                          );
-                        },
-                      ),
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : filteredTransactions.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    isIncomeSelected
+                                        ? 'Tidak ada transaksi pemasukan untuk bulan ini.'
+                                        : 'Tidak ada transaksi pengeluaran untuk bulan ini.',
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                )
+                              : SingleChildScrollView( 
+                                  scrollDirection: Axis.horizontal,
+                                  child: DataTable(
+                                    columns: const [
+                                      DataColumn(label: Text('Tanggal')),
+                                      DataColumn(label: Text('Kategori')),
+                                      DataColumn(label: Text('Nominal')),
+                                    ],
+                                    rows: filteredTransactions.map((transaksi) {
+                                      return DataRow(cells: [
+                                        DataCell(Text(DateFormat('dd MMMM yyyy', 'id').format(transaksi['transaction_date']))), // Format tanggal yang benar
+                                        DataCell(Text(transaksi['category'])),
+                                        DataCell(Text('Rp ${NumberFormat.decimalPattern().format(transaksi['amount'])}')),
+                                      ]);
+                                    }).toList(),
+                                  ),
+                                ),
                     ),
                   ],
                 ),
@@ -188,7 +406,7 @@ class _PencatatanPageState extends State<PencatatanPage> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF4A90E2),
         onPressed: _showAddTransactionDialog,
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: BottomNavigationBar(
@@ -198,26 +416,32 @@ class _PencatatanPageState extends State<PencatatanPage> {
         currentIndex: _selectedMenuIndex,
         onTap: (index) {
           if (index != _selectedMenuIndex) {
+            setState(() {
+              _selectedMenuIndex = index;
+            });
+            List<String> incomeCategoryNames = widget.allBudgetingCategories.where((c) => c.type == 'pemasukan').map((c) => c.category).toList();
+            List<String> expenseCategoryNames = widget.allBudgetingCategories.where((c) => c.type == 'pengeluaran').map((c) => c.category).toList();
+
             switch (index) {
               case 0:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => BudgetingPage()));
-                break;
-              case 1:
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => PencatatanPage(
-                      tipePemasukan: widget.tipePemasukan,
-                      tipePengeluaran: widget.tipePengeluaran,
-                    ),
-                  ),
+                  MaterialPageRoute(builder: (_) => BudgetingPage(authToken: widget.authToken)),
                 );
                 break;
+              case 1:
+                break;
               case 2:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LaporanPage()));
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => LaporanPage(authToken: widget.authToken)),
+                );
                 break;
               case 3:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ProfilePage()));
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => ProfilePage(authToken: widget.authToken)),
+                );
                 break;
             }
           }

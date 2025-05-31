@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'register_screen.dart';
 import 'budgeting_page.dart';
 
 class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
@@ -11,6 +15,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   late AnimationController _controller;
   late Animation<Offset> _slide1, _slide2, _slide3, _slide4;
   late Animation<double> _fade1, _fade2, _fade3, _fade4;
+
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void initState() {
@@ -45,11 +52,83 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   void dispose() {
     _controller.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  Widget _buildTextField(String hint, bool obscure) {
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showError('Email dan password tidak boleh kosong.');
+      return;
+    }
+
+    // Pastikan IP ini dapat dijangkau dari emulator/perangkat Anda
+    // Untuk emulator Android, jika server di localhost, gunakan http://10.0.2.2:9999/auth/login
+    // Untuk iOS simulator/perangkat fisik, pastikan IP lokal Anda benar dan dapat dijangkau
+    final url = Uri.parse('http://192.168.56.111:9999/auth/login');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      // Debug: print semua isi data
+      debugPrint('Decoded JSON: ${jsonEncode(data)}');
+
+      if (response.statusCode == 200) {
+        // Perubahan di sini: Mengecek 'access_token' langsung di root JSON
+        if (data is Map && data.containsKey('access_token')) {
+          final token = data['access_token']; // Mengambil token
+          print('Login berhasil. Token: $token');
+
+          // Arahkan ke halaman berikutnya
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => BudgetingPage(authToken: token)),
+          );
+        } else {
+          _showError('Kunci "access_token" tidak ditemukan dalam respons server.');
+        }
+      } else {
+        // Menampilkan pesan error dari server jika ada
+        _showError('Login gagal. Status: ${response.statusCode}. Pesan: ${data['message'] ?? 'Tidak ada pesan spesifik dari server.'}');
+      }
+    } catch (e) {
+      print('Exception: $e');
+      _showError('Gagal menghubungi server. Pastikan alamat IP benar dan server berjalan.');
+    }
+  }
+
+  void _showError(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Login Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            child: Text('OK'),
+            onPressed: () => Navigator.pop(context),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(String hint, bool obscure, TextEditingController controller) {
     return TextField(
+      controller: controller,
       obscureText: obscure,
       decoration: InputDecoration(
         hintText: hint,
@@ -104,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       position: _slide1,
                       child: FadeTransition(
                         opacity: _fade1,
-                        child: _buildTextField('Username', false),
+                        child: _buildTextField('Email', false, _emailController),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -112,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       position: _slide2,
                       child: FadeTransition(
                         opacity: _fade2,
-                        child: _buildTextField('Password', true),
+                        child: _buildTextField('Password', true, _passwordController),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -121,9 +200,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       child: FadeTransition(
                         opacity: _fade3,
                         child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => BudgetingPage()),);
-                          },
+                          onPressed: _login,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.blue,
@@ -178,14 +255,19 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       padding: const EdgeInsets.only(bottom: 20),
                       child: TextButton(
                         onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterScreen()),);
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterScreen()));
                         },
                         child: RichText(
-                          text: TextSpan(text: "Don't have an account? ", style: TextStyle(color: Colors.white70),
-                          children: [
-                            TextSpan(text: "Register Now", style: TextStyle( fontWeight: FontWeight.bold, color: Colors.white,),),
+                          text: TextSpan(
+                            text: "Don't have an account? ",
+                            style: TextStyle(color: Colors.white70),
+                            children: [
+                              TextSpan(
+                                text: "Register Now",
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
                             ],
-                          ), 
+                          ),
                         ),
                       ),
                     ),
