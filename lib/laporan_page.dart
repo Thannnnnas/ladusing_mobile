@@ -66,15 +66,19 @@ class _LaporanPageState extends State<LaporanPage> {
       if (responseBudgeting.statusCode == 200) {
         final dynamic decodedDataBudgeting = jsonDecode(responseBudgeting.body);
         if (decodedDataBudgeting is List) {
-          _allBudgetingCategories = decodedDataBudgeting
-              .map<BudgetingCategory>((item) {
-                if (item is Map<String, dynamic> && item.containsKey('id')) {
-                  return BudgetingCategory.fromJson(item);
-                }
-                return BudgetingCategory(id: -1, category: 'Invalid', type: 'unknown');
-              })
-              .where((cat) => cat.id != -1)
-              .toList();
+          List<BudgetingCategory> tempCategories = [];
+          for (var item in decodedDataBudgeting) {
+            if (item is Map<String, dynamic> && item.containsKey('id') && item.containsKey('category') && item.containsKey('type')) {
+              try {
+                tempCategories.add(BudgetingCategory.fromJson(item));
+              } catch (e) {
+                print('Error parsing BudgetingCategory from JSON: $e, Item: $item');
+              }
+            } else {
+              print('Skipping malformed budgeting category item: $item');
+            }
+          }
+          _allBudgetingCategories = tempCategories;
         } else {
           print('Warning: Budgeting API response format unexpected.');
         }
@@ -83,6 +87,7 @@ class _LaporanPageState extends State<LaporanPage> {
       }
     } catch (e) {
       print('Exception fetching budgeting categories: $e');
+      _showErrorDialog('Gagal menghubungi server untuk memuat kategori budgeting.');
     }
 
     // Ambil data transaksi mentah untuk periode yang dipilih
@@ -105,7 +110,27 @@ class _LaporanPageState extends State<LaporanPage> {
       if (responseTransactions.statusCode == 200) {
         final dynamic decodedDataTransactions = jsonDecode(responseTransactions.body);
         if (decodedDataTransactions is List) {
-          _allTransactions = decodedDataTransactions.cast<Map<String, dynamic>>();
+          List<Map<String, dynamic>> fetchedTransactions = [];
+          for (var item in decodedDataTransactions) {
+            // Perbaiki null check untuk memastikan semua kunci yang dibutuhkan ada dan bukan null
+            if (item is Map<String, dynamic> &&
+                item.containsKey('id') &&
+                item.containsKey('transaction_date') &&
+                item.containsKey('category') &&
+                item.containsKey('amount') &&
+                item.containsKey('type')) {
+              fetchedTransactions.add({
+                'id': item['id'],
+                'transaction_date': DateTime.tryParse(item['transaction_date'] as String? ?? '') ?? DateTime.now(), // Handle null transaction_date
+                'category': item['category'] as String? ?? 'Unknown Category', // Add null check and default
+                'amount': (item['amount'] as num?)?.toDouble() ?? 0.0, // Ensure double, handle null
+                'type': item['type'] as String? ?? 'unknown', // Add null check and default
+              });
+            } else {
+              print('Skipping malformed transaction item: $item');
+            }
+          }
+          _allTransactions = fetchedTransactions;
 
           // Agregasi total pemasukan dan pengeluaran dari transaksi mentah yang diambil
           double currentTotalIncome = 0.0;
@@ -136,10 +161,11 @@ class _LaporanPageState extends State<LaporanPage> {
 
           // Hitung total dari filteredTransactionsByPeriod
           for (var item in filteredTransactionsByPeriod) {
-            double amount = (item['amount'] as num?)?.toDouble() ?? 0.0;
-            if (item['type'] == 'pemasukan') {
+            double amount = (item['amount'] as double?) ?? 0.0; // Use as double? to handle potential null from map
+            String type = (item['type'] as String?) ?? 'unknown'; // Ensure type is handled as string, default 'unknown'
+            if (type == 'pemasukan') {
               currentTotalIncome += amount;
-            } else if (item['type'] == 'pengeluaran') {
+            } else if (type == 'pengeluaran') {
               currentTotalExpense += amount;
             }
           }
@@ -240,8 +266,8 @@ class _LaporanPageState extends State<LaporanPage> {
 
     Map<String, double> aggregatedDataForDisplay = {};
     transactionsForCurrentPeriod.forEach((transaction) {
-      String type = transaction['type'];
-      String category = transaction['category'];
+      String type = (transaction['type'] as String?) ?? 'unknown'; // Tambahkan null check
+      String category = (transaction['category'] as String?) ?? 'Unknown Category'; // Tambahkan null check
       double amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
 
       if ((isIncomeSelected && type == 'pemasukan') || (!isIncomeSelected && type == 'pengeluaran')) {
