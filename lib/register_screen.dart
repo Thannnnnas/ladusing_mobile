@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // Import for HTTP requests
-import 'dart:convert'; // Import for JSON encoding/decoding
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,13 +10,15 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // --- Controllers for text fields ---
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
-  bool _isLoading = false; // To show a loading indicator
+  bool _isLoading = false;
+  bool _isPasswordVisible = false; // State for password visibility
+  bool _isConfirmPasswordVisible = false; // State for confirm password visibility
+
   final String _baseUrl = 'http://192.168.56.111:9999'; // Base URL API Anda
 
   @override
@@ -28,11 +30,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Helper method for building text fields with controllers
-  Widget _buildTextField(String label, TextEditingController controller, {bool obscure = false}) {
+  Widget _buildTextField(String label, TextEditingController controller, {bool obscure = false, bool isPassword = false}) {
     return TextField(
       controller: controller,
-      obscureText: obscure,
+      obscureText: obscure ? (isPassword ? !_isPasswordVisible : !_isConfirmPasswordVisible) : false,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white),
@@ -42,22 +43,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-        suffixIcon: obscure
-            ? const Icon(Icons.visibility_off, color: Colors.white54)
+        suffixIcon: isPassword || obscure 
+            ? IconButton(
+                icon: Icon(
+                  isPassword && _isPasswordVisible || !isPassword && _isConfirmPasswordVisible
+                      ? Icons.visibility
+                      : Icons.visibility_off,
+                  color: Colors.white54,
+                ),
+                onPressed: () {
+                  setState(() {
+                    if (isPassword) {
+                      _isPasswordVisible = !_isPasswordVisible;
+                    } else { 
+                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                    }
+                  });
+                },
+              )
             : null,
       ),
       style: const TextStyle(color: Colors.white),
     );
   }
 
-  // --- Function to handle user registration ---
+
   Future<void> _registerUser() async {
     final String username = _usernameController.text.trim();
     final String email = _emailController.text.trim();
     final String password = _passwordController.text;
     final String confirmPassword = _confirmPasswordController.text;
 
-    // --- Input Validation ---
     if (username.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       _showSnackBar('Please fill in all fields.', Colors.red);
       return;
@@ -66,20 +82,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _showSnackBar('Passwords do not match.', Colors.red);
       return;
     }
-    if (password.length < 6) { // Example: minimum password length
+    if (password.length < 6) {
       _showSnackBar('Password must be at least 6 characters long.', Colors.red);
       return;
     }
-    if (!email.contains('@') || !email.contains('.')) { // Simple email validation
+    if (!email.contains('@') || !email.contains('.')) {
       _showSnackBar('Please enter a valid email address.', Colors.red);
       return;
     }
 
     setState(() {
-      _isLoading = true; // Show loading indicator
+      _isLoading = true;
     });
 
-    final url = Uri.parse('$_baseUrl/auth/register'); // API endpoint for registration
+    final url = Uri.parse('$_baseUrl/auth/register');
 
     try {
       final response = await http.post(
@@ -97,10 +113,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       print('Register Status code: ${response.statusCode}');
       print('Register Response body: ${response.body}');
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 ||  response.statusCode == 201) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         _showSnackBar(responseData['message'] ?? 'Registration successful!', Colors.green);
-        // Optionally, navigate to login screen after successful registration
         Navigator.pop(context);
       } else {
         final Map<String, dynamic> errorData = jsonDecode(response.body);
@@ -111,12 +126,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _showSnackBar('Failed to connect to the server. Please check your internet connection or API URL.', Colors.red);
     } finally {
       setState(() {
-        _isLoading = false; // Hide loading indicator
+        _isLoading = false;
       });
     }
   }
 
-  // Helper method to show SnackBar messages
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -165,14 +179,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 16),
                 _buildTextField('Email Address *', _emailController),
                 const SizedBox(height: 16),
-                _buildTextField('Password *', _passwordController, obscure: true),
+                _buildTextField('Password *', _passwordController, obscure: true, isPassword: true), // Pass isPassword: true
                 const SizedBox(height: 16),
-                _buildTextField('Confirm Password *', _confirmPasswordController, obscure: true),
+                _buildTextField('Confirm Password *', _confirmPasswordController, obscure: true), // No isPassword: true, it will use obscure
                 const SizedBox(height: 24),
-                _isLoading // Show loading indicator if true
+                _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : ElevatedButton(
-                        onPressed: _registerUser, // Call the registration function
+                        onPressed: _registerUser,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.blue,
@@ -188,8 +202,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed: () {
                     Navigator.pop(context);
                   },
-                  child: RichText(
-                    text: const TextSpan(
+                  child:  RichText(
+                    text: TextSpan(
                       text: "Already have an account? ",
                       style: TextStyle(color: Colors.white70),
                       children: [

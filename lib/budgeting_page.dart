@@ -4,20 +4,18 @@ import 'package:http/http.dart' as http;
 import 'pencatatan_page.dart';
 import 'laporan_page.dart';
 import 'profile_page.dart';
-import 'package:intl/intl.dart'; // Pastikan Anda sudah menambahkan intl di pubspec.yaml
-import 'package:collection/collection.dart'; // Untuk firstWhereOrNull, pastikan ini di pubspec.yaml
+import 'package:intl/intl.dart'; 
+import 'package:collection/collection.dart'; 
 
-// --- Model Data untuk BudgetingCategory ---
-// Ini adalah representasi data yang diterima dari API Anda
 class BudgetingCategory {
   final int id;
   final String category;
   final String type;
-  final double? totalBudget; // Untuk 'pemasukan' (jika ada nilai target budget)
-  final double? limitAmount; // Untuk 'pengeluaran'
-  final double? usedAmount; // Untuk 'pengeluaran'
-  final double? remainingLimit; // Untuk 'pengeluaran'
-  final double? totalIncomeFromTransactions; // <-- TAMBAHAN INI (dari API backend)
+  final double? totalBudget; 
+  final double? limitAmount; 
+  final double? usedAmount; 
+  final double? remainingLimit; 
+  final double? totalIncomeFromTransactions; 
 
   BudgetingCategory({
     required this.id,
@@ -27,20 +25,18 @@ class BudgetingCategory {
     this.limitAmount,
     this.usedAmount,
     this.remainingLimit,
-    this.totalIncomeFromTransactions, // <-- TAMBAHAN INI
+    this.totalIncomeFromTransactions, 
   });
 
-  // Factory constructor untuk mengurai JSON dari respons API
   factory BudgetingCategory.fromJson(Map<String, dynamic> json) {
     return BudgetingCategory(
       id: json['id'],
       category: json['category'],
       type: json['type'],
-      // API GET /budgeting?month mengembalikan 'total_budget' untuk pemasukan
       totalBudget: json['type'] == 'pemasukan'
-          ? (json['total_budget'] as num?)?.toDouble() // Jika backend mengirimnya
+          ? (json['total_budget'] as num?)?.toDouble()
           : null,
-      totalIncomeFromTransactions: json['type'] == 'pemasukan' // <-- PENTING: Mengambil data dari API
+      totalIncomeFromTransactions: json['type'] == 'pemasukan'
           ? (json['total_income_from_transactions'] as num?)?.toDouble()
           : null,
       limitAmount: json['type'] == 'pengeluaran'
@@ -57,9 +53,9 @@ class BudgetingCategory {
 }
 
 class BudgetingPage extends StatefulWidget {
-  final String authToken; // Menerima token dari LoginScreen
+  final String authToken; 
 
-  const BudgetingPage({Key? key, required this.authToken}) : super(key: key);
+  const BudgetingPage({super.key, required this.authToken});
 
   @override
   _BudgetingPageState createState() => _BudgetingPageState();
@@ -68,44 +64,38 @@ class BudgetingPage extends StatefulWidget {
 class _BudgetingPageState extends State<BudgetingPage> {
   int _selectedMenuIndex = 0;
   bool isIncomeSelected = true;
-  bool _isLoading = true; // Indikator loading
+  bool _isLoading = true; 
 
-  List<BudgetingCategory> _allBudgetingCategories = [];// Menyimpan semua kategori dari API
-  List<BudgetingCategory> incomeCategories = []; // Kategori pemasukan yang difilter
-  List<BudgetingCategory> expenseCategories = []; // Kategori pengeluaran yang difilter
+  List<BudgetingCategory> _allBudgetingCategories = [];
+  List<BudgetingCategory> incomeCategories = []; 
+  List<BudgetingCategory> expenseCategories = []; 
 
-  // _rawTransactionsForIncomeAggregation tidak lagi dibutuhkan karena data pemasukan dihitung di backend (Opsi A)
-  // List<Map<String, dynamic>> _rawTransactionsForIncomeAggregation = [];
+  String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now()); 
+  final List<String> _availableMonths = []; 
 
-  String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now()); // Bulan yang dipilih (format: YYYY-MM)
-  List<String> _availableMonths = []; // Daftar bulan yang bisa dipilih di dropdown
-
-  final String _baseUrl = 'http://192.168.56.111:9999'; // Base URL API Anda
+  final String _baseUrl = 'http://192.168.56.111:9999'; 
 
   @override
   void initState() {
     super.initState();
-    _generateAvailableMonths(); // Membuat daftar bulan untuk dropdown
-    _fetchBudgetingData(); // Memuat data budgeting saat halaman dimuat
+    _generateAvailableMonths(); 
+    _fetchBudgetingData(); 
   }
 
-  // Fungsi untuk membuat daftar bulan di dropdown
   void _generateAvailableMonths() {
     DateTime now = DateTime.now();
-    for (int i = -6; i <= 12; i++) { // Menampilkan 6 bulan ke belakang dan 12 bulan ke depan dari bulan saat ini
+    for (int i = -6; i <= 12; i++) { 
       DateTime month = DateTime(now.year, now.month + i, 1);
       _availableMonths.add(DateFormat('yyyy-MM').format(month));
     }
-    // Pastikan bulan saat ini terpilih jika tidak ada dalam rentang awal
     if (!_availableMonths.contains(_selectedMonth)) {
       _selectedMonth = DateFormat('yyyy-MM').format(now);
     }
   }
 
-  // --- Fungsi untuk Mengambil Data Budgeting dari API (GET /budgeting?month=...) ---
   Future<void> _fetchBudgetingData() async {
     setState(() {
-      _isLoading = true; // Set loading true saat memulai fetch
+      _isLoading = true; 
     });
 
     final url = Uri.parse('$_baseUrl/budgeting?month=$_selectedMonth');
@@ -114,7 +104,7 @@ class _BudgetingPageState extends State<BudgetingPage> {
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${widget.authToken}', // Menggunakan token otentikasi
+          'Authorization': 'Bearer ${widget.authToken}', 
         },
       );
 
@@ -124,7 +114,6 @@ class _BudgetingPageState extends State<BudgetingPage> {
       if (response.statusCode == 200) {
         final dynamic decodedData = jsonDecode(response.body);
 
-        // API GET /budgeting?month=YYYY-MM mengembalikan ARRAY OBJEK langsung
         if (decodedData is List) {
           List<BudgetingCategory> fetchedCategories = [];
           for (var item in decodedData) {
@@ -134,16 +123,13 @@ class _BudgetingPageState extends State<BudgetingPage> {
           }
           setState(() {
             _allBudgetingCategories = fetchedCategories;
-            // Memfilter kategori berdasarkan tipe (pemasukan/pengeluaran)
             incomeCategories = _allBudgetingCategories.where((c) => c.type == 'pemasukan').toList();
             expenseCategories = _allBudgetingCategories.where((c) => c.type == 'pengeluaran').toList();
           });
         } else {
-          // Tangani jika respons bukan List (misalnya, objek error atau format yang salah)
           _showErrorDialog('Format respons API budgeting tidak sesuai: bukan list. Pesan: ${decodedData['message'] ?? 'Tidak ada pesan spesifik.'}');
         }
       } else {
-        // Coba parsing body respons sebagai Map jika ada pesan error
         final errorData = jsonDecode(response.body);
         _showErrorDialog('Gagal memuat budget: Status ${response.statusCode}. Pesan: ${errorData['message'] ?? 'Tidak ada pesan.'}');
       }
@@ -152,18 +138,17 @@ class _BudgetingPageState extends State<BudgetingPage> {
       _showErrorDialog('Gagal menghubungi server untuk memuat budget. Pastikan alamat IP benar atau API berjalan.');
     } finally {
       setState(() {
-        _isLoading = false; // Set loading false setelah selesai fetch
+        _isLoading = false; 
       });
     }
   }
 
-  // --- Fungsi untuk Menambahkan Data Budgeting ke API (POST /budgeting) ---
   Future<void> _addBudgetingTypeToApi(String category, String type, {double? limitAmount}) async {
     final url = Uri.parse('$_baseUrl/budgeting');
-    final month = _selectedMonth; // Menggunakan bulan yang sedang dipilih di UI
+    final month = _selectedMonth; 
 
     Map<String, dynamic> body = {
-      'month': "$month-01", // Format tanggal API untuk POST (YYYY-MM-DD)
+      'month': "$month-01", 
       'category': category,
       'type': type,
     };
@@ -185,16 +170,15 @@ class _BudgetingPageState extends State<BudgetingPage> {
       print('Add Budgeting Type Status code: ${response.statusCode}');
       print('Add Budgeting Type Response body: ${response.body}');
 
-      if (response.statusCode == 200) { // Status 200 OK berarti sukses (sesuai curl POST Anda)
+      if (response.statusCode == 200) { 
         final dynamic decodedResponse = jsonDecode(response.body);
 
-        // API POST /budgeting mengembalikan objek dengan kunci "data"
         if (decodedResponse is Map && decodedResponse.containsKey('data')) {
           print('New budget item added successfully: ${decodedResponse['data']}');
-          _fetchBudgetingData(); // Refresh data setelah berhasil menambahkan
+          _fetchBudgetingData(); 
         } else {
           _showErrorDialog('Budget berhasil ditambahkan, namun format respons tidak terduga. Pesan: ${decodedResponse['message'] ?? 'Tidak ada pesan.'}');
-          _fetchBudgetingData(); // Tetap refresh untuk memastikan UI up-to-date
+          _fetchBudgetingData(); 
         }
       } else {
         final errorData = jsonDecode(response.body);
@@ -206,7 +190,6 @@ class _BudgetingPageState extends State<BudgetingPage> {
     }
   }
 
-  // --- Dialog untuk Menambahkan Tipe Budgeting ---
   void _showAddTypeDialog() {
     TextEditingController typeController = TextEditingController();
     TextEditingController amountController = TextEditingController();
@@ -221,7 +204,7 @@ class _BudgetingPageState extends State<BudgetingPage> {
               controller: typeController,
               decoration: const InputDecoration(hintText: "Nama Kategori (mis. Gaji, Makan)"),
             ),
-            if (!isIncomeSelected) // Tampilkan field limit_amount hanya untuk pengeluaran
+            if (!isIncomeSelected) 
               Padding(
                 padding: const EdgeInsets.only(top: 10.0),
                 child: TextField(
@@ -256,7 +239,6 @@ class _BudgetingPageState extends State<BudgetingPage> {
                     return;
                   }
                 } else {
-                  // Jika ini adalah pengeluaran dan limit belum diisi, tampilkan error
                   _showErrorDialog('Limit Angka harus diisi untuk pengeluaran.');
                   return;
                 }
@@ -271,7 +253,6 @@ class _BudgetingPageState extends State<BudgetingPage> {
     );
   }
 
-  // Fungsi untuk menampilkan dialog error
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -290,20 +271,7 @@ class _BudgetingPageState extends State<BudgetingPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Kategori yang akan ditampilkan berdasarkan pilihan Pemasukan/Pengeluaran
     List<BudgetingCategory> displayedCategories = isIncomeSelected ? incomeCategories : expenseCategories;
-
-    // Agregasi total pemasukan berdasarkan kategori dari _rawTransactionsForIncomeAggregation
-    // Bagian ini dihapus karena API backend sekarang menyediakan total_income_from_transactions
-    // Map<String, double> aggregatedIncomeAmounts = {};
-    // for (var transaction in _rawTransactionsForIncomeAggregation) {
-    //   if (transaction['type'] == 'pemasukan') {
-    //     String categoryName = transaction['category'];
-    //     double amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
-    //     aggregatedIncomeAmounts.update(categoryName, (value) => value + amount, ifAbsent: () => amount);
-    //   }
-    // }
-
 
     return Scaffold(
       body: Container(
@@ -336,7 +304,6 @@ class _BudgetingPageState extends State<BudgetingPage> {
                 child: Column(
                   children: [
                     const SizedBox(height: 8),
-                    // Dropdown untuk memilih bulan
                     DropdownButton<String>(
                       value: _selectedMonth,
                       underline: const SizedBox(),
@@ -350,10 +317,9 @@ class _BudgetingPageState extends State<BudgetingPage> {
                         setState(() {
                           _selectedMonth = value!;
                         });
-                        _fetchBudgetingData(); // Muat ulang data saat bulan berubah
+                        _fetchBudgetingData(); 
                       },
                     ),
-                    // Tombol Pemasukan/Pengeluaran
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -388,10 +354,9 @@ class _BudgetingPageState extends State<BudgetingPage> {
                         ),
                       ],
                     ),
-                    // Daftar kategori budgeting
                     Expanded(
                       child: _isLoading
-                          ? const Center(child: CircularProgressIndicator()) // Indikator loading
+                          ? const Center(child: CircularProgressIndicator()) 
                           : displayedCategories.isEmpty
                               ? Center(
                                   child: Text(
@@ -509,7 +474,6 @@ class _BudgetingPageState extends State<BudgetingPage> {
 
             switch (index) {
               case 0:
-                // Sudah di halaman Budgeting, tidak perlu navigasi ulang
                 break;
               case 1:
                 Navigator.pushReplacement(

@@ -1,18 +1,18 @@
-import 'dart:math'; // Untuk fungsi max
-import 'dart:convert'; // Untuk JSON encoding/decoding
+import 'dart:math'; 
+import 'dart:convert'; 
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart'; // Untuk grafik PieChart
-import 'package:http/http.dart' as http; // Untuk permintaan HTTP
-import 'budgeting_page.dart'; // Import ini untuk akses BudgetingCategory dan modelnya
+import 'package:fl_chart/fl_chart.dart'; 
+import 'package:http/http.dart' as http; 
+import 'budgeting_page.dart'; 
 import 'pencatatan_page.dart';
 import 'profile_page.dart';
-import 'package:intl/intl.dart'; // Untuk pemformatan tanggal
-import 'package:collection/collection.dart'; // Untuk firstWhereOrNull
+import 'package:intl/intl.dart'; 
+import 'package:collection/collection.dart'; 
 
 class LaporanPage extends StatefulWidget {
   final String authToken;
 
-  const LaporanPage({Key? key, required this.authToken}) : super(key: key);
+  const LaporanPage({super.key, required this.authToken});
 
   @override
   _LaporanPageState createState() => _LaporanPageState();
@@ -20,38 +20,36 @@ class LaporanPage extends StatefulWidget {
 
 class _LaporanPageState extends State<LaporanPage> {
   int _selectedMenuIndex = 2;
-  String selectedPeriode = 'Bulanan'; // Default to Monthly
+  String selectedPeriode = 'Bulanan'; 
   DateTime selectedDate = DateTime.now();
-  bool isIncomeSelected = true; // Untuk toggle Pie Chart Pemasukan/Pengeluaran
+  bool isIncomeSelected = true; 
   bool _isLoading = true;
   final Random random = Random();
   Map<String, Color> kategoriColors = {};
 
-  List<BudgetingCategory> _allBudgetingCategories = []; // Menyimpan semua kategori dari API (untuk mendapatkan limit)
-  List<Map<String, dynamic>> _allTransactions = []; // Semua transaksi mentah dari API untuk agregasi di frontend
+  List<BudgetingCategory> _allBudgetingCategories = []; 
+  List<Map<String, dynamic>> _allTransactions = []; 
 
   double totalIncome = 0.0;
   double totalExpense = 0.0;
 
-  final String _baseUrl = 'http://192.168.56.111:9999'; // Base URL API Anda
+  final String _baseUrl = 'http://192.168.56.111:9999'; 
 
   @override
   void initState() {
     super.initState();
-    _fetchReportData(); // Ambil data laporan saat inisialisasi
+    _fetchReportData(); 
   }
 
-  // Fungsi untuk mengambil data yang dibutuhkan LaporanPage (kategori & transaksi mentah)
   Future<void> _fetchReportData() async {
     setState(() {
       _isLoading = true;
       _allBudgetingCategories.clear();
-      _allTransactions.clear(); // Bersihkan transaksi mentah
+      _allTransactions.clear(); 
       totalIncome = 0.0;
       totalExpense = 0.0;
     });
 
-    // Sesuaikan parameter bulan untuk API, karena API /budgeting?month hanya mendukung YYYY-MM
     String monthYearForBudgeting = DateFormat('yyyy-MM').format(selectedDate);
     final urlBudgeting = Uri.parse('$_baseUrl/budgeting?month=$monthYearForBudgeting');
 
@@ -90,8 +88,6 @@ class _LaporanPageState extends State<LaporanPage> {
       _showErrorDialog('Gagal menghubungi server untuk memuat kategori budgeting.');
     }
 
-    // Ambil data transaksi mentah untuk periode yang dipilih
-    // Karena API /transactions hanya menerima 'month', kita akan selalu kirim month.
     String monthYearForTransactions = DateFormat('yyyy-MM').format(selectedDate);
     final urlTransactions = Uri.parse('$_baseUrl/transactions?month=$monthYearForTransactions');
 
@@ -112,7 +108,6 @@ class _LaporanPageState extends State<LaporanPage> {
         if (decodedDataTransactions is List) {
           List<Map<String, dynamic>> fetchedTransactions = [];
           for (var item in decodedDataTransactions) {
-            // Perbaiki null check untuk memastikan semua kunci yang dibutuhkan ada dan bukan null
             if (item is Map<String, dynamic> &&
                 item.containsKey('id') &&
                 item.containsKey('transaction_date') &&
@@ -122,9 +117,9 @@ class _LaporanPageState extends State<LaporanPage> {
               fetchedTransactions.add({
                 'id': item['id'],
                 'transaction_date': DateTime.tryParse(item['transaction_date'] as String? ?? '') ?? DateTime.now(), // Handle null transaction_date
-                'category': item['category'] as String? ?? 'Unknown Category', // Add null check and default
-                'amount': (item['amount'] as num?)?.toDouble() ?? 0.0, // Ensure double, handle null
-                'type': item['type'] as String? ?? 'unknown', // Add null check and default
+                'category': item['category'] as String? ?? 'Unknown Category', 
+                'amount': (item['amount'] as num?)?.toDouble() ?? 0.0, 
+                'type': item['type'] as String? ?? 'unknown', 
               });
             } else {
               print('Skipping malformed transaction item: $item');
@@ -132,12 +127,9 @@ class _LaporanPageState extends State<LaporanPage> {
           }
           _allTransactions = fetchedTransactions;
 
-          // Agregasi total pemasukan dan pengeluaran dari transaksi mentah yang diambil
           double currentTotalIncome = 0.0;
           double currentTotalExpense = 0.0;
 
-          // Agregasi berdasarkan `selectedPeriode` dari _allTransactions
-          // Ini adalah logika untuk memfilter transaksi mentah berdasarkan periode di frontend
           List<Map<String, dynamic>> filteredTransactionsByPeriod = [];
           if (selectedPeriode == 'Harian') {
             filteredTransactionsByPeriod = _allTransactions.where((t) =>
@@ -151,7 +143,6 @@ class _LaporanPageState extends State<LaporanPage> {
               return transactionDate.isAfter(startOfWeek.subtract(const Duration(days: 1))) && transactionDate.isBefore(endOfWeek.add(const Duration(days: 1)));
             }).toList();
           } else if (selectedPeriode == 'Bulanan') {
-            // Jika bulanan, kita sudah ambil semua transaksi di bulan itu
             filteredTransactionsByPeriod = _allTransactions;
           } else if (selectedPeriode == 'Tahunan') {
             filteredTransactionsByPeriod = _allTransactions.where((t) =>
@@ -159,10 +150,9 @@ class _LaporanPageState extends State<LaporanPage> {
             ).toList();
           }
 
-          // Hitung total dari filteredTransactionsByPeriod
           for (var item in filteredTransactionsByPeriod) {
-            double amount = (item['amount'] as double?) ?? 0.0; // Use as double? to handle potential null from map
-            String type = (item['type'] as String?) ?? 'unknown'; // Ensure type is handled as string, default 'unknown'
+            double amount = (item['amount'] as double?) ?? 0.0; 
+            String type = (item['type'] as String?) ?? 'unknown'; 
             if (type == 'pemasukan') {
               currentTotalIncome += amount;
             } else if (type == 'pengeluaran') {
@@ -189,7 +179,6 @@ class _LaporanPageState extends State<LaporanPage> {
     }
   }
 
-  // Fungsi untuk memilih tanggal
   void _pickDate() async {
     DateTime? picked = await showDatePicker(
       context: context,
@@ -201,11 +190,10 @@ class _LaporanPageState extends State<LaporanPage> {
       setState(() {
         selectedDate = picked;
       });
-      _fetchReportData(); // Refresh data saat tanggal berubah
+      _fetchReportData(); 
     }
   }
 
-  // Mendapatkan warna unik untuk setiap kategori
   Color getKategoriColor(String kategori) {
     if (!kategoriColors.containsKey(kategori)) {
       kategoriColors[kategori] = Color.fromARGB(
@@ -218,7 +206,6 @@ class _LaporanPageState extends State<LaporanPage> {
     return kategoriColors[kategori]!;
   }
 
-  // Fungsi untuk menampilkan dialog error
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -237,27 +224,24 @@ class _LaporanPageState extends State<LaporanPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Data untuk Pie Chart dan Tabel (berdasarkan isIncomeSelected)
     List<PieChartSectionData> pieChartSections = [];
-    List<Map<String, dynamic>> tableRecords = []; // Data untuk tabel
+    List<Map<String, dynamic>> tableRecords = []; 
     double currentPieTotal = 0.0;
 
-    // Agregasi data transaksi mentah untuk Pie Chart dan Tabel berdasarkan selectedPeriode
-    // Filter _allTransactions berdasarkan selectedPeriode sebelum agregasi
     List<Map<String, dynamic>> transactionsForCurrentPeriod = [];
     if (selectedPeriode == 'Harian') {
       transactionsForCurrentPeriod = _allTransactions.where((t) =>
           DateFormat('yyyy-MM-dd').format(DateTime.tryParse(t['transaction_date'] ?? '') ?? DateTime.now()) == DateFormat('yyyy-MM-dd').format(selectedDate)
       ).toList();
     } else if (selectedPeriode == 'Mingguan') {
-      DateTime startOfWeek = selectedDate.subtract(Duration(days: selectedDate.weekday)); // Minggu adalah hari pertama
+      DateTime startOfWeek = selectedDate.subtract(Duration(days: selectedDate.weekday)); 
       DateTime endOfWeek = startOfWeek.add(const Duration(days: 6)); // Sabtu adalah hari terakhir
       transactionsForCurrentPeriod = _allTransactions.where((t) {
         DateTime transactionDate = DateTime.tryParse(t['transaction_date'] ?? '') ?? DateTime.now();
         return transactionDate.isAfter(startOfWeek.subtract(const Duration(days: 1))) && transactionDate.isBefore(endOfWeek.add(const Duration(days: 1)));
       }).toList();
     } else if (selectedPeriode == 'Bulanan') {
-      transactionsForCurrentPeriod = _allTransactions; // _allTransactions sudah difilter per bulan
+      transactionsForCurrentPeriod = _allTransactions; 
     } else if (selectedPeriode == 'Tahunan') {
       transactionsForCurrentPeriod = _allTransactions.where((t) =>
           (DateTime.tryParse(t['transaction_date'] ?? '') ?? DateTime.now()).year == selectedDate.year
@@ -265,15 +249,15 @@ class _LaporanPageState extends State<LaporanPage> {
     }
 
     Map<String, double> aggregatedDataForDisplay = {};
-    transactionsForCurrentPeriod.forEach((transaction) {
-      String type = (transaction['type'] as String?) ?? 'unknown'; // Tambahkan null check
-      String category = (transaction['category'] as String?) ?? 'Unknown Category'; // Tambahkan null check
+    for (var transaction in transactionsForCurrentPeriod) {
+      String type = (transaction['type'] as String?) ?? 'unknown';
+      String category = (transaction['category'] as String?) ?? 'Unknown Category'; 
       double amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
 
       if ((isIncomeSelected && type == 'pemasukan') || (!isIncomeSelected && type == 'pengeluaran')) {
         aggregatedDataForDisplay.update(category, (value) => value + amount, ifAbsent: () => amount);
       }
-    });
+    }
 
     currentPieTotal = isIncomeSelected ? totalIncome : totalExpense; // Total ini sudah dihitung berdasarkan filtered _allTransactions
 
@@ -285,7 +269,7 @@ class _LaporanPageState extends State<LaporanPage> {
         pieChartSections.add(
           PieChartSectionData(
             value: amount,
-            title: '${category}\n${((amount / currentPieTotal) * 100).toStringAsFixed(1)}%',
+            title: '$category\n${((amount / currentPieTotal) * 100).toStringAsFixed(1)}%',
             color: getKategoriColor(category),
             radius: 60,
             titleStyle: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
@@ -299,8 +283,8 @@ class _LaporanPageState extends State<LaporanPage> {
           'total': amount,
           'persentase_total': currentPieTotal > 0 ? (amount / currentPieTotal) * 100 : 0.0,
         });
-      } else { // Pengeluaran
-        double limit = budgetCat?.limitAmount ?? 0.0; // Ambil limit dari data budgeting
+      } else { 
+        double limit = budgetCat?.limitAmount ?? 0.0; 
         tableRecords.add({
           'kategori': category,
           'total': amount,
@@ -358,7 +342,7 @@ class _LaporanPageState extends State<LaporanPage> {
                                 setState(() {
                                   selectedPeriode = value!;
                                 });
-                                _fetchReportData(); // Refresh data saat periode berubah
+                                _fetchReportData(); 
                               },
                             ),
                           ),
@@ -406,7 +390,6 @@ class _LaporanPageState extends State<LaporanPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    // Pie Chart Pemasukan/Pengeluaran
                     _isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : pieChartSections.isEmpty && (totalIncome == 0 && totalExpense == 0)
@@ -436,7 +419,7 @@ class _LaporanPageState extends State<LaporanPage> {
                                   ),
                                 )
                               : SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal, // Agar tabel bisa di-scroll horizontal
+                                  scrollDirection: Axis.horizontal, 
                                   child: DataTable(
                                     columns: isIncomeSelected
                                         ? const [
@@ -504,7 +487,6 @@ class _LaporanPageState extends State<LaporanPage> {
                 );
                 break;
               case 2:
-                // Sudah di LaporanPage, tidak perlu navigasi ulang
                 break;
               case 3:
                 Navigator.pushReplacement(

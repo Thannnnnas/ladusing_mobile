@@ -19,6 +19,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  bool _isPasswordVisible = false; 
+  bool _isLoading = false; 
+
+  final String _baseUrl = 'http://192.168.56.111:9999'; 
+
   @override
   void initState() {
     super.initState();
@@ -28,23 +33,23 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       duration: const Duration(milliseconds: 1200),
     );
 
-    _slide1 = Tween<Offset>(begin: Offset(0, 0.5), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.4, curve: Curves.easeOut)),
+    _slide1 = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.4, curve: Curves.easeOut)),
     );
-    _slide2 = Tween<Offset>(begin: Offset(0, 0.5), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.2, 0.6, curve: Curves.easeOut)),
+    _slide2 = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.2, 0.6, curve: Curves.easeOut)),
     );
-    _slide3 = Tween<Offset>(begin: Offset(0, 0.5), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.4, 0.8, curve: Curves.easeOut)),
+    _slide3 = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.4, 0.8, curve: Curves.easeOut)),
     );
-    _slide4 = Tween<Offset>(begin: Offset(0, 0.5), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.6, 1.0, curve: Curves.easeOut)),
+    _slide4 = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.6, 1.0, curve: Curves.easeOut)),
     );
 
-    _fade1 = CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.4));
-    _fade2 = CurvedAnimation(parent: _controller, curve: Interval(0.2, 0.6));
-    _fade3 = CurvedAnimation(parent: _controller, curve: Interval(0.4, 0.8));
-    _fade4 = CurvedAnimation(parent: _controller, curve: Interval(0.6, 1.0));
+    _fade1 = CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.4));
+    _fade2 = CurvedAnimation(parent: _controller, curve: const Interval(0.2, 0.6));
+    _fade3 = CurvedAnimation(parent: _controller, curve: const Interval(0.4, 0.8));
+    _fade4 = CurvedAnimation(parent: _controller, curve: const Interval(0.6, 1.0));
 
     _controller.forward();
   }
@@ -62,14 +67,15 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showError('Email dan password tidak boleh kosong.');
+      _showSnackBar('Email dan password tidak boleh kosong.', Colors.red);
       return;
     }
 
-    // Pastikan IP ini dapat dijangkau dari emulator/perangkat Anda
-    // Untuk emulator Android, jika server di localhost, gunakan http://10.0.2.2:9999/auth/login
-    // Untuk iOS simulator/perangkat fisik, pastikan IP lokal Anda benar dan dapat dijangkau
-    final url = Uri.parse('http://192.168.56.111:9999/auth/login');
+    setState(() {
+      _isLoading = true; 
+    });
+
+    final url = Uri.parse('$_baseUrl/auth/login');
 
     try {
       final response = await http.post(
@@ -78,69 +84,75 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         body: jsonEncode({'email': email, 'password': password}),
       );
 
-      print('Status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('Login Status code: ${response.statusCode}');
+      print('Login Response body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
-      // Debug: print semua isi data
-      debugPrint('Decoded JSON: ${jsonEncode(data)}');
-
-      if (response.statusCode == 200) {
-        // Perubahan di sini: Mengecek 'access_token' langsung di root JSON
+      if (response.statusCode >= 200 && response.statusCode < 300) { 
         if (data is Map && data.containsKey('access_token')) {
-          final token = data['access_token']; // Mengambil token
+          final token = data['access_token'];
+          _showSnackBar('Login berhasil!', Colors.green); 
           print('Login berhasil. Token: $token');
 
-          // Arahkan ke halaman berikutnya
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => BudgetingPage(authToken: token)),
           );
         } else {
-          _showError('Kunci "access_token" tidak ditemukan dalam respons server.');
+          _showSnackBar('Respons server tidak valid: Kunci "access_token" tidak ditemukan.', Colors.red); // Error message
         }
       } else {
-        // Menampilkan pesan error dari server jika ada
-        _showError('Login gagal. Status: ${response.statusCode}. Pesan: ${data['message'] ?? 'Tidak ada pesan spesifik dari server.'}');
+        _showSnackBar(data['message'] ?? 'Login gagal. Silakan coba lagi.', Colors.red); // Error message
       }
     } catch (e) {
       print('Exception: $e');
-      _showError('Gagal menghubungi server. Pastikan alamat IP benar dan server berjalan.');
+      _showSnackBar('Gagal menghubungi server. Pastikan alamat IP benar dan server berjalan.', Colors.red); // Error message
+    } finally {
+      setState(() {
+        _isLoading = false; 
+      });
     }
   }
 
-  void _showError(String message) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Login Error'),
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
         content: Text(message),
-        actions: [
-          TextButton(
-            child: Text('OK'),
-            onPressed: () => Navigator.pop(context),
-          )
-        ],
+        backgroundColor: color,
+        duration: const Duration(seconds: 3), 
       ),
     );
   }
 
-  Widget _buildTextField(String hint, bool obscure, TextEditingController controller) {
+  Widget _buildTextField(String hint, bool isPassword, TextEditingController controller) {
     return TextField(
       controller: controller,
-      obscureText: obscure,
+      obscureText: isPassword ? !_isPasswordVisible : false, 
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
         fillColor: Colors.white.withOpacity(0.15),
-        hintStyle: TextStyle(color: Colors.white70),
+        hintStyle: const TextStyle(color: Colors.white70),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                  color: Colors.white54,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible; 
+                  });
+                },
+              )
+            : null,
       ),
-      style: TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white),
     );
   }
 
@@ -183,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       position: _slide1,
                       child: FadeTransition(
                         opacity: _fade1,
-                        child: _buildTextField('Email', false, _emailController),
+                        child: _buildTextField('Email', false, _emailController), 
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -191,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       position: _slide2,
                       child: FadeTransition(
                         opacity: _fade2,
-                        child: _buildTextField('Password', true, _passwordController),
+                        child: _buildTextField('Password', true, _passwordController), 
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -199,18 +211,20 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       position: _slide3,
                       child: FadeTransition(
                         opacity: _fade3,
-                        child: ElevatedButton(
-                          onPressed: _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.blue,
-                            minimumSize: Size(double.infinity, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Login'),
-                        ),
+                        child: _isLoading 
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : ElevatedButton(
+                                onPressed: _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.blue,
+                                  minimumSize: const Size(double.infinity, 48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text('Login'),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 30),
@@ -223,8 +237,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                           children: [
                             ElevatedButton.icon(
                               icon: Image.asset('assets/icons8-google-480.png', height: 20),
-                              label: Text('Google'),
-                              onPressed: () {},
+                              label: const Text('Google'),
+                              onPressed: () {
+                                _showSnackBar('Login with Google not implemented.', Colors.grey);
+                              },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: Colors.black,
@@ -236,8 +252,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             const SizedBox(width: 16),
                             ElevatedButton.icon(
                               icon: Image.asset('assets/icons8-facebook-480.png', height: 20),
-                              label: Text('Facebook'),
-                              onPressed: () {},
+                              label: const Text('Facebook'),
+                              onPressed: () {
+                                _showSnackBar('Login with Facebook not implemented.', Colors.grey);
+                              },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: Colors.blue,
@@ -255,14 +273,14 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       padding: const EdgeInsets.only(bottom: 20),
                       child: TextButton(
                         onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterScreen()));
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen())); // Ensure RegisterScreen is const
                         },
                         child: RichText(
-                          text: TextSpan(
+                          text: const TextSpan( 
                             text: "Don't have an account? ",
                             style: TextStyle(color: Colors.white70),
                             children: [
-                              TextSpan(
+                              TextSpan( 
                                 text: "Register Now",
                                 style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                               ),

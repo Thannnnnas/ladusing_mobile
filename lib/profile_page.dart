@@ -5,19 +5,19 @@ import 'budgeting_page.dart';
 import 'laporan_page.dart';
 import 'pencatatan_page.dart';
 import 'package:intl/intl.dart';
-import 'login_screen.dart'; // Import LoginScreen untuk navigasi logout
+import 'login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
   final String authToken;
 
-  const ProfilePage({Key? key, required this.authToken}) : super(key: key);
+  const ProfilePage({super.key, required this.authToken});
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  int _selectedMenuIndex = 3;
+  final int _selectedMenuIndex = 3;
   bool _isLoading = true;
   String? _username;
   String? _email;
@@ -188,16 +188,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Fungsi untuk menangani proses logout
   void _logout() {
-    // TODO: Hapus token dari penyimpanan lokal (misalnya SharedPreferences) di sini
-    // SharedPreferences prefs = await SharedPreferences.getInstance();
-    // prefs.remove('auth_token'); // Ganti 'auth_token' dengan kunci token Anda
 
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (Route<dynamic> route) => false, // Hapus semua rute sebelumnya
+      (Route<dynamic> route) => false,
     );
   }
 
@@ -280,8 +276,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             _buildProfileInfoRow('Email:', _email ?? 'Memuat...'),
                             if (_createdAt != null) ...[
                               const SizedBox(height: 10),
-                              // Contoh: Menampilkan created_at jika diambil dari API
-                              _buildProfileInfoRow('Bergabung Sejak:', DateFormat('dd MMMMilizce', 'id').format(DateTime.parse(_createdAt!))),
+                              _buildProfileInfoRow('Bergabung Sejak:', DateFormat('dd MMMM yyyy', 'id').format(DateTime.parse(_createdAt!))),
                             ],
                             const SizedBox(height: 30),
                             SizedBox(

@@ -14,12 +14,12 @@ class PencatatanPage extends StatefulWidget {
   final List<BudgetingCategory> allBudgetingCategories; 
 
   const PencatatanPage({
-    Key? key,
+    super.key,
     required this.authToken,
     this.tipePemasukan = const [],
     this.tipePengeluaran = const [],
     required this.allBudgetingCategories, 
-  }) : super(key: key);
+  });
 
   @override
   _PencatatanPageState createState() => _PencatatanPageState();
@@ -32,11 +32,11 @@ class _PencatatanPageState extends State<PencatatanPage> {
   List<Map<String, dynamic>> transaksiRecords = [];
   String _selectedMonthForTransactions = DateFormat('MMMM yyyy', 'id').format(DateTime.now());
 
-  DateTime _currentSelectedDateInDialog = DateTime.now();
+  final DateTime _currentSelectedDateInDialog = DateTime.now();
 
   final String _baseUrl = 'http://192.168.56.111:9999';
 
-  List<String> _availableMonthsForTransactions = [];
+  final List<String> _availableMonthsForTransactions = [];
 
   @override
   void initState() {
